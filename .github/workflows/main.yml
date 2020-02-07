@@ -9,7 +9,7 @@ jobs:
       with:
         java-version: 11
     - run: |
-      java --version
-      java src/.build/Assemble3rdPartyModules.java
-      java src/.build/CompileMainAndTestModules.java
-      java src/.build/LaunchJUnitPlatform.java
+        java --version
+        java src/.build/Assemble3rdPartyModules.java
+        java src/.build/CompileMainAndTestModules.java
+        java src/.build/LaunchJUnitPlatform.java
