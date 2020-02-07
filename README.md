@@ -1,6 +1,12 @@
 # java-module-patching
 Or what is "test-time module redefinition"?
 
+## Related Work
+
+- "pro/ModuleHelper.mergeModuleDescriptor()" [forax/2016](https://github.com/forax/pro/blob/2ddd9425cb95617b6dfd6c7d077ed387a5f6809c/src/main/java/com.github.forax.pro.helper/com/github/forax/pro/helper/ModuleHelper.java#L338)
+- "Testing In The Modular World" [sormuras.github.io/2018-09-11](https://sormuras.github.io/blog/2018-09-11-testing-in-the-modular-world)
+- "RFE simplify usage of patched module" [Robert Scholte/2020-02-05](https://mail.openjdk.java.net/pipermail/jigsaw-dev/2020-February/thread.html#14357)
+
 ## Module System Quick-Start Guide enhanced with Testing
 
 The goal of this project is to perform intra-module (white box) and inter-module (black box) test runs without breaking the boundaries of the Java Module System.
@@ -111,6 +117,11 @@ WARNING: module-info.class ignored in patch: out/modules/main/org.astro.jar
       +-- accessPackagePrivateMember()
 ```
 
+The last program `LaunchJUnitPlatform.java` starts the JUnit Platform Console Launcher on the module path.
+Its [command line options](https://junit.org/junit5/docs/current/user-guide/#running-tests-console-launcher-options) offer a `--select-module` option.
+This option selects the specified module for test discovery.
+Effectively, that results in executing and evaluating each `@Test`-annotated method with the specified module.
+
 ### Why is there a warning about "module-info.class ignored in patch"?
 
 There are warnings emitted by the Java Module System for each modular test run above reading:
@@ -181,14 +192,17 @@ We just can't rely on the classy `--class-path` to do merging-magic for us.
 
 Here, the `--patch-module` and related options of `javac` and `java` are our tools of the trade.
 With them, we may keep the boundaries of the Java Module System for the **main** modules intact.
-Only for intra-module testing we need to redefine the API of a module in volatile (non-published) manner.
+Only for intra-module testing we need to redefine the API of a module in volatile (non-published, not-reusable) manner.
 The next section will discuss this feature in detail.
 
 ## Test-time module redefinition
 
 Let's zoom in further into the base directory of the `org.astro` module.
+That magnification will finally lead to the motivation why a new `PATCH` (or what-ever it will be called) modifier was requested via ["RFE simplify usage of patched module"](https://mail.openjdk.java.net/pipermail/jigsaw-dev/2020-February/thread.html#14357).
 
-The **main** module describing compilation unit named `module-info.java` reads:
+### Main-variant of module `org.astro`
+
+The **main** module describing compilation unit named `module-info.java` and located in the `src/org.astro/main/java` directory reads:
 
 [`src/org.astro/main/java/module-info.java`](src/org.astro/main/java/module-info.java)
 
@@ -198,23 +212,84 @@ module org.astro {
 }
 ```
 
-The **test** module describing compilation unit, also named `module-info.java`, reads:
+It describes the **main** API of module `org.astro`.
+
+That API defines what dependent modules may see and use from module `org.astro`.
+In a real project, this module would be published for re-use.
+
+### Test-variant of module `org.astro`
+
+The **test** module describing compilation unit, also named `module-info.java`, but located in the `src/org.astro/test/java` directory reads:
 
 [`src/org.astro/test/java/module-info.java`](src/org.astro/test/java/module-info.java)
 
 ```java
-open /*test*/ module org.astro /*extends "src/org.astro/main/java/module-info.java*/ {
+open /* test */ module org.astro /* patches "src/org.astro/main/java/module-info.java */ {
   exports org.astro;
 
   requires org.junit.jupiter.api;
 }
 ```
 
-// TODO Explain the manual merge of directives of the main module.
+That module describes the **test** API of module `org.astro`.
 
-// TODO Motivate the need for a new "patch" modifier as Robert did.
+This **test** module variant is _**NOT**_ intended to be published _**NOR**_ is it expected to be re-used by other modules.
+The inline comments in the compilation unit try to underline those intentions.
 
-## Related Work
+The only purpose of this **test** module variant is to serve as the starting point or root configuration for the Java Module System at test-time in an intra-module scenario.
+Because at test-time (compilation and runtime) the author of the tests may want to make use of additional modules.
+Additional modules related to the task of testing: that includes system modules, project modules, and of potentially modules provided by testing frameworks.
 
-- "Testing In The Modular World" [sormuras.github.io/2018-09-11](https://sormuras.github.io/blog/2018-09-11-testing-in-the-modular-world)
-- "RFE simplify usage of patched module" [Robert Scholte/2020-02-05](https://mail.openjdk.java.net/pipermail/jigsaw-dev/2020-February/thread.html#14357)
+Technically, the **test** module patches, strictly speaking adds, module modifiers and directives on top of the **main** module descriptor.
+Here test author may open the module for deep reflection as required by an testing framework, of course for test-time only.
+Here test author may read additional modules, like the external `org.junit.jupiter.api` module in this example or a module offered by the system, e.g. `java.sql`.
+Here test author may provide and use additional services, if the test code needs those to perform its automated checks.
+
+Note: all the mentioned patches above are a non-issue in the inter-module (black box) testing scenario.
+Consult for example the [`test.modules`](src/test.modules/test/java/module-info.java) module declaration.
+It's a standalone root configuration for starting tests declared within that very module.
+There is no related **main** `test.modules` module for this **test** module.
+
+### Introduce new module modifier: PATCH
+
+Copy module directives from the **main** to the **test** variant is brittle.
+This is why I second Robert's suggestion to introduce a new `patch` modifier.
+Applied to this project, especially to the `org.astro` module, the **test** module would read like:
+
+> One solution that might fit here is the introduction of a new modifier:
+> ```text
+>  patch open module org.astro {
+>     requires org.junit.jupiter.api;
+>  }
+> ```
+
+Citing Robert again:
+
+> This describes clear the purpose of the module, and as the "patch" already
+  implies: it should be handled with care.
+  Allowing such module descriptor should help adopting the modular system
+  faster. It doesn't require the knowledge of the module related flags, the
+  build tool can solve it. As the developer is already familiar with the main
+  module descriptor, adding a patched module descriptor when required is just
+  a simple step.
+
+An extended **test** variant of the module could read:
+
+```java
+patch open module org.astro {
+    requires java.sql;              // Needed by some tests...
+    requires org.junit.jupiter.api; // Test API
+    requires org.assertj.core;      // Assertion Framework
+    // ... here be more additional directives
+}
+```
+
+Technical note: the [warning](#why-is-there-a-warning-about-module-infoclass-ignored-in-patch) described above
+may already hint to a good place where the modifiers and directives of the **main** and **test** module can be merged.
+Rémi already showed how to perform that [merge](https://github.com/forax/pro/blob/2ddd9425cb95617b6dfd6c7d077ed387a5f6809c/src/main/java/com.github.forax.pro.helper/com/github/forax/pro/helper/ModuleHelper.java#L338).
+
+
+## Alternatives
+
+- Let the end-user learn and understand the command line options of `javac` and `java` related the tweaking the configuration of the Java Module System.
+- Let each build tool come up with its solution for providing additional module directives for intra-module testing.
