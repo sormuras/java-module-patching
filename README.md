@@ -3,17 +3,19 @@ Or what is "test-time module redefinition"?
 
 ## Module System Quick-Start Guide enhanced with Testing
 
-The goal of this project is to perform intra-module (white box) and inter-module (black box) test runs.
-To start from a common and well-know ground, the modules used in this project are based on the [Module System Quick-Start Guide](https://openjdk.java.net/projects/jigsaw/quick-start).
+The goal of this project is to perform intra-module (white box) and inter-module (black box) test runs without breaking the boundaries of the Java Module System.
+To start from a common and well-known ground, the modules used in this project are based on the [Module System Quick-Start Guide](https://openjdk.java.net/projects/jigsaw/quick-start).
 
 The example modules from the Quick-Start Guide, namely [`com.greetings`](src/com.greetings) and [`org.astro`](src/org.astro), are transferred to a modified directory layout structure.
 The directory layout structure of this project allows separating production (short: **main**) from testing (short: **test**) code.
 This project also adds another module named [`test.modules`](src/test.modules) that will be used to test the API of the two example modules.
-It also provides platform-agnostic foundation-tool-only-invoking programs in the [src/.build/](src/.build) directory.
 
-Consult the following drawing for an overview of the directory layout structure.
+This project also provides platform-agnostic foundation-tool-only-invoking programs in the [src/.build/](src/.build) directory.
+The configuration via an external build tool like Maven is not a direct goal of this project, though might be added later.
 
 ### Directory Layout Structure
+
+Consult the following drawing for an overview of the directory layout structure.
 
 ```text
 └───src                            ___
