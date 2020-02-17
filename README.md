@@ -7,6 +7,100 @@ Or what is "test-time module redefinition"?
 - "Testing In The Modular World" [sormuras.github.io/2018-09-11](https://sormuras.github.io/blog/2018-09-11-testing-in-the-modular-world)
 - "RFE simplify usage of patched module" [Robert Scholte/2020-02-05](https://mail.openjdk.java.net/pipermail/jigsaw-dev/2020-February/thread.html#14357)
 
+## Examples
+
+The following examples describe the in-module (white-box) testing scenario where `--patch-module` is required.
+Inter-module (black-box) testing works out of the box, i.e. without patching, and is not included in this example section.
+
+All examples declare the "main" module ♻`src/org.astro/main/module-info.java` as follows:
+```
+  module org.astro {
+      exports org.astro;
+      requires java.logging;
+  }
+```
+
+### Patch "main" module with additional elements needed for testing
+
+With ♻`src/org.astro/main/module-info.java` being the "primary" module.
+
+Instead of passing two command line options for testing:
+```
+--add-modules java.sql
+--add-reads org.astro=java.sql
+```
+
+The user describes the additional elements in `src/org.astro/test/module-info.java`:
+```
+  module org.astro {        // name specifies the "primary" module to be patched
+      requires java.sql;    // adds and reads the specified module
+  }
+```
+
+A build tool picks up this user-defined "test" description via:
+```
+--patch-module-descriptor src/org.astro/test/module-info.java
+```
+
+### Patch "test" module with basic elements needed by the "main" module
+
+With `src/org.astro/test/module-info.java` being the "primary" module here.
+
+```
+  module org.astro {
+      requires java.sql;
+  }
+```
+
+Instead of repeating all "main" module directives on the command line:
+```
+--add-modules java.logging
+--add-reads org.astro=java.logging
+--add-exports org.astro/org.astro=*
+```
+
+A build tool _just_ points to the ♻`src/org.astro/main/module-info.java` module descriptor and re-uses the information from there:
+```
+--patch-module-descriptor src/org.astro/main/module-info.java
+```
+
+### Reflectively accessing internal APIs with `--add-opens`
+
+```
+--add-opens org.astro/org.astro=org.junit.platform.commons
+```
+
+```
+  module org.astro {
+      opens org.astro to org.junit.platform.commons;
+  }
+```
++
+```
+--patch-module-descriptor bin/org.astro/test/module-info.class
+```
+
+
+### Bulk Opening All Packages With `open module`
+
+```
+--add-opens org.astro/org.astro=org.junit.platform.commons
+--add-opens org.astro/org.astro.p1=org.junit.platform.commons
+--add-opens org.astro/org.astro.p2=org.junit.platform.commons
+--add-opens org.astro/org.astro.pN=org.junit.platform.commons
+--add-opens org.astro/*=org.junit.platform.commons
+```
+
+```
+  open module org.astro {
+      // empty, as the `open` modifier already opens all packages
+  }
+```
++
+```
+--patch-module-descriptor=bin/org.astro/test/module-info.class
+```
+
 ## Module System Quick-Start Guide enhanced with Testing
 
 The goal of this project is to perform intra-module (white box) and inter-module (black box) test runs without breaking the boundaries of the Java Module System.
