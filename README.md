@@ -20,6 +20,10 @@ All examples declare the "main" module ♻`src/org.astro/main/module-info.java` 
   }
 ```
 
+Note: all examples make use of a "compact" form of `--patch-module-descriptor MODULE-DESC`.
+The compact form reads the name of module to be patched from the `MODULE-DESC` itself.
+That implicit name acquisation can be overridden by using an explicit option form like: `--patch-module-descriptor MODULE=MODULE-DESC`
+
 ### Patch "main" module with additional elements needed for testing
 
 With ♻`src/org.astro/main/module-info.java` being the "primary" module.
@@ -64,39 +68,53 @@ A build tool _just_ points to the ♻`src/org.astro/main/module-info.java` modul
 --patch-module-descriptor src/org.astro/main/module-info.java
 ```
 
-### Reflectively accessing internal APIs with `--add-opens`
+### Open for deep-reflection
 
+With ♻`bin/org.astro/main/module-info.class` being the "primary" module at runtime.
+
+Instead of passing the `--add-opens` command line option for testing:
 ```
 --add-opens org.astro/org.astro=org.junit.platform.commons
 ```
 
+The user declares in `src/org.astro/test/module-info.java`:
 ```
   module org.astro {
       opens org.astro to org.junit.platform.commons;
   }
 ```
-+
+
+A build tools adds, after compiling the source unit into a class file:
 ```
 --patch-module-descriptor bin/org.astro/test/module-info.class
 ```
 
 
-### Bulk Opening All Packages With `open module`
+### Bulk opening all packages
 
+With ♻`bin/org.astro/main/module-info.class` being the "primary" module at runtime.
+
+The following bulky command lines options...
 ```
 --add-opens org.astro/org.astro=org.junit.platform.commons
 --add-opens org.astro/org.astro.p1=org.junit.platform.commons
 --add-opens org.astro/org.astro.p2=org.junit.platform.commons
 --add-opens org.astro/org.astro.pN=org.junit.platform.commons
+```
+
+...that effectively open all packages to a target module for reflection and could be shortened to:
+```
 --add-opens org.astro/*=org.junit.platform.commons
 ```
 
+...could be written as:
 ```
   open module org.astro {
       // empty, as the `open` modifier already opens all packages
   }
 ```
-+
+
+With the build tool setting the single command line option:
 ```
 --patch-module-descriptor=bin/org.astro/test/module-info.class
 ```
